@@ -1321,7 +1321,10 @@ describe('WorkflowService', () => {
 
 			await workflowService.deactivateWorkflow(user, WORKFLOW_ID);
 
-			expect(externalHooksMock.run).toHaveBeenCalledWith('workflow.deactivate', [workflow]);
+			expect(externalHooksMock.run).toHaveBeenCalledWith('workflow.deactivate', [
+				workflow,
+				workflowHookContextServiceMock,
+			]);
 		});
 
 		test('does not run the hook when the workflow is already inactive', async () => {
