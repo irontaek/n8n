@@ -51,6 +51,7 @@ import { ProjectService } from '@/services/project.service.ee';
 import { RoleService } from '@/services/role.service';
 import { TagService } from '@/services/tag.service';
 import { getBase as getWorkflowExecutionData } from '@/workflow-execute-additional-data';
+import { WorkflowHookContextService } from '@/workflow-hook-context.service';
 
 import { WorkflowValidationService } from './workflow-validation.service';
 
@@ -90,6 +91,7 @@ export class WorkflowService {
 		private readonly redactionEnforcementService: RedactionEnforcementService,
 		private readonly workflowPublicationNotifier: WorkflowPublicationNotifier,
 		private readonly scheduleTriggerJobRegistrar: ScheduleTriggerJobRegistrar,
+		private readonly workflowHookContextService: WorkflowHookContextService,
 	) {}
 
 	async getMany(
@@ -517,7 +519,10 @@ export class WorkflowService {
 		}
 
 		// Run external hook after all validation has passed, right before persisting
-		await this.externalHooks.run('workflow.update', [workflowUpdateData]);
+		await this.externalHooks.run('workflow.update', [
+			workflowUpdateData,
+			this.workflowHookContextService,
+		]);
 
 		const fieldsToUpdate = [
 			'name',
@@ -601,7 +606,10 @@ export class WorkflowService {
 				requestOrder: tagIds,
 			});
 		}
-		await this.externalHooks.run('workflow.afterUpdate', [updatedWorkflow]);
+		await this.externalHooks.run('workflow.afterUpdate', [
+			updatedWorkflow,
+			this.workflowHookContextService,
+		]);
 
 		const settingsChangesDetail = this.calculateSettingsChanges(
 			workflow.settings,
@@ -825,7 +833,10 @@ export class WorkflowService {
 		});
 
 		try {
-			await this.externalHooks.run('workflow.activate', [candidateWorkflow]);
+			await this.externalHooks.run('workflow.activate', [
+				candidateWorkflow,
+				this.workflowHookContextService,
+			]);
 		} catch (error) {
 			throw new WorkflowActivationBadRequestError(ensureError(error).message, {
 				nodeId: getErrorNodeId(error),
