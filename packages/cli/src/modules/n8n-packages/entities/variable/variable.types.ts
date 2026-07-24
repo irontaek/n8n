@@ -1,9 +1,11 @@
+import { variableValueSchema } from '@n8n/api-types';
 import type { User } from '@n8n/db';
+import { UserError } from 'n8n-workflow';
 
 import type { PackageWriter } from '../../io/package-writer';
+import type { VariableMissingMode } from '../../n8n-packages.types';
 import type { ManifestEntry } from '../../spec/manifest.schema';
 import type { PackageVariableRequirement } from '../../spec/requirements.schema';
-import type { VariableMissingMode } from '../../n8n-packages.types';
 
 export interface WorkflowVariableRequirement {
 	workflowId: string;
@@ -30,25 +32,46 @@ export interface VariableExportResult {
  * so the importer never inspects policies or manifests itself.
  */
 export type PlacedVariableRequirement = PackageVariableRequirement & {
-	/** When true a created stub lands at global scope; otherwise in the context's project. */
+	/** When true a created variable lands at global scope; otherwise in the context's project. */
 	globalPlacement: boolean;
 };
 
 /**
- * Decodes the package layout the exporter wrote (see `resolveBaseDir` in variable.exporter.ts)
- * back into a placement for one project scope: the scope's own bundled entry
- * (`<projectTarget>/variables/…`) wins, else a top-level entry (`variables/…`) means global,
- * else (name-only, or bundled under a different project) fall back to the consuming project.
+ * Chooses the manifest entry for one scope from the package layout written by
+ * `VariableExporter`: the scope's own entry wins, then a top-level entry.
+ * Multiple entries at the winning tier are ambiguous and reject the import.
  */
-export function isRequirementAGlobalVariable(
+export function pickManifestVariableEntry(
 	manifestVariables: ManifestEntry[] | undefined,
-	projectTarget: string,
+	projectTarget: string | undefined,
 	name: string,
-): boolean {
+): ManifestEntry | undefined {
 	const entries = (manifestVariables ?? []).filter((entry) => entry.name === name);
-	if (entries.some((entry) => entry.target.startsWith(`${projectTarget}/variables/`))) return false;
-	if (entries.some((entry) => entry.target.startsWith('variables/'))) return true;
-	return false;
+	const projectEntries = projectTarget
+		? entries.filter((entry) => entry.target.startsWith(`${projectTarget}/variables/`))
+		: [];
+	const topLevelEntries = entries.filter((entry) => entry.target.startsWith('variables/'));
+	const winningEntries = projectEntries.length > 0 ? projectEntries : topLevelEntries;
+
+	if (winningEntries.length > 1) {
+		throw new UserError(`Package contains ambiguous variable entries for "${name}".`);
+	}
+
+	return winningEntries[0];
+}
+
+export function validateVariableRequirementValue(
+	value: string | undefined,
+	name: string,
+): string | undefined {
+	if (value === undefined) return undefined;
+	const result = variableValueSchema.safeParse(value);
+	if (!result.success) {
+		throw new UserError(`Package variable requirement "${name}" has an invalid value.`, {
+			cause: result.error,
+		});
+	}
+	return result.data;
 }
 
 export interface VariableImportRequest {
@@ -61,14 +84,15 @@ export interface VariableResolutionFailure {
 	usedByWorkflows: string[];
 }
 
-/** A variable the import would create as an empty stub, with its resolved destination. */
+/** A variable the import would create, with its resolved destination and optional package value. */
 export interface VariableCreation {
 	name: string;
 	projectId?: string;
+	value?: string;
 	usedByWorkflows: string[];
 }
 
-/** Reports that creating the planned stubs would exceed the instance variable quota. */
+/** Reports that creating the planned variables would exceed the instance variable quota. */
 export interface VariableLimitFailure {
 	limit: number;
 	requested: number;
@@ -122,17 +146,19 @@ export interface VariableImportPlan {
 	 * only warnings under `do-nothing`; they block the import under `must-preexist`.
 	 */
 	missing: VariableResolutionFailure[];
-	/** Stubs to create under `create-stub`; empty for every other missing mode. */
+	/** Variables to create under a creation-capable missing mode. */
 	creations: VariableCreation[];
 	/** Set when the planned creations would exceed the instance variable quota. */
 	limitFailure?: VariableLimitFailure;
 }
 
 export interface VariableApplyResult {
-	/** Names created by this import (one entry per name, even if created in several projects). */
+	/** Names created with a package value (one entry per name, even across projects). */
+	created: string[];
+	/** Names created without a package value. */
 	stubbed: string[];
 	/** Planned creations skipped because the exact destination was already occupied. */
 	skippedExisting: string[];
-	/** Rows actually created (skips excluded) — feeds telemetry. */
+	/** All rows actually created, valued and stubbed (skips excluded) — feeds telemetry. */
 	createdCount: number;
 }

@@ -29,8 +29,8 @@ export class VariableImporter {
 
 	/**
 	 * Resolves the package's variable requirements against the target project
-	 * (then global), mirroring runtime `$vars` precedence. Under `create-stub` it
-	 * additionally derives the stubs to create and preflights permission, license,
+	 * (then global), mirroring runtime `$vars` precedence. Under a creating mode it
+	 * additionally derives the variables to create and preflights permission, license,
 	 * and (unless `checkQuota` is disabled) the instance variable quota — throwing
 	 * a `ForbiddenError` for permission/license failures before any writes.
 	 */
@@ -53,7 +53,9 @@ export class VariableImporter {
 		const matched: string[] = [];
 		const missing: VariableResolutionFailure[] = [];
 		const creations: VariableCreation[] = [];
-		const createStub = request.missingMode === VariableMissingMode.CreateStub;
+		const createsMissing =
+			request.missingMode === VariableMissingMode.CreateStub ||
+			request.missingMode === VariableMissingMode.CreateWithValue;
 
 		for (const requirement of requirements) {
 			const picked = pickVariableForProject(
@@ -66,10 +68,14 @@ export class VariableImporter {
 				continue;
 			}
 			missing.push(createFailure(requirement));
-			if (createStub) {
+			if (createsMissing) {
 				creations.push({
 					name: requirement.name,
 					...(requirement.globalPlacement ? {} : { projectId: context.projectId }),
+					...(request.missingMode === VariableMissingMode.CreateWithValue &&
+					requirement.value !== undefined
+						? { value: requirement.value }
+						: {}),
 					usedByWorkflows: [...new Set(requirement.usedByWorkflows)].sort(),
 				});
 			}
@@ -100,7 +106,7 @@ export class VariableImporter {
 	}
 
 	/**
-	 * Creates the planned stubs with empty values. Re-checks the exact destination
+	 * Creates the planned variables with package values or empty stubs. Re-checks the exact destination
 	 * against a fresh cache before each create so a variable already created by an
 	 * earlier scope of the same import (or an external writer) is skipped rather
 	 * than duplicated. `VariablesService.create` re-enforces permission, license,
@@ -108,6 +114,7 @@ export class VariableImporter {
 	 * cross-scope dedupe work.
 	 */
 	async apply(context: ImportContext, plan: VariableImportPlan): Promise<VariableApplyResult> {
+		const created: string[] = [];
 		const stubbed: string[] = [];
 		const skippedExisting: string[] = [];
 		let createdCount = 0;
@@ -122,10 +129,14 @@ export class VariableImporter {
 				await this.variablesService.create(context.user, {
 					key: creation.name,
 					type: 'string',
-					value: '',
+					value: creation.value ?? '',
 					...(creation.projectId ? { projectId: creation.projectId } : {}),
 				});
-				stubbed.push(creation.name);
+				if (creation.value === undefined) {
+					stubbed.push(creation.name);
+				} else {
+					created.push(creation.name);
+				}
 				createdCount += 1;
 			} catch (error) {
 				// `VariablesService.create` throws the same `VariableCountLimitReachedError` for two
@@ -145,6 +156,7 @@ export class VariableImporter {
 		}
 
 		return {
+			created: [...new Set(created)],
 			stubbed: [...new Set(stubbed)],
 			skippedExisting: [...new Set(skippedExisting)],
 			createdCount,

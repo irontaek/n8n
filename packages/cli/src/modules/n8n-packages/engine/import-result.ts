@@ -66,7 +66,7 @@ export function buildImportResult(input: {
 
 /**
  * Builds the response `variables` summary for a single-destination (workflow/folder) package,
- * keeping the three lists mutually exclusive. A `skippedExisting` name means the destination was
+ * keeping the four lists mutually exclusive. A `skippedExisting` name means the destination was
  * occupied between plan and apply (an external write) — it now resolves but this import did not
  * create it, so it moves into `matched`, not `stubbed`.
  */
@@ -75,14 +75,17 @@ export function toVariableSummary(
 	result: VariableApplyResult,
 ): ImportVariableSummary {
 	const matched = new Set([...plan.matched, ...result.skippedExisting]);
+	const created = new Set(result.created);
 	const stubbed = new Set(result.stubbed);
 	const skipped = new Set(result.skippedExisting);
+	const missing = plan.missing
+		.map(({ name }) => name)
+		.filter((name) => !created.has(name) && !stubbed.has(name) && !skipped.has(name));
 	return {
 		matched: [...matched],
+		missing,
+		created: [...created],
 		stubbed: [...stubbed],
-		missing: plan.missing
-			.map(({ name }) => name)
-			.filter((name) => !stubbed.has(name) && !skipped.has(name)),
 	};
 }
 

@@ -12,6 +12,10 @@ import { ProjectService } from '@/services/project.service.ee';
 
 import type { CredentialBindingRequest } from '../entities/credential/credential.types';
 import type { DataTableImportRequest } from '../entities/data-table/data-table.types';
+import {
+	pickManifestVariableEntry,
+	validateVariableRequirementValue,
+} from '../entities/variable/variable.types';
 import type { VariableImportRequest } from '../entities/variable/variable.types';
 import type { PackageReader } from '../io/package-reader';
 import type { ImportContext, ImportPackageRequest, ImportResult } from '../n8n-packages.types';
@@ -85,16 +89,37 @@ export class WorkflowPackageImporter {
 		};
 
 		const variableRequirements = identifyRequirements(manifest.requirements?.variables, workflows);
-		if (variableRequirements?.length && request.variableMissingMode === 'create-stub') {
+		const createsVariables =
+			request.variableMissingMode === 'create-stub' ||
+			request.variableMissingMode === 'create-with-value';
+		if (variableRequirements?.length && createsVariables) {
 			assertPackageImportApiKeyScopes(request.apiKeyScopes, ['variable:create']);
 		}
-		// `project` places stubs in the import target project; `global` sends them to global scope.
+		const packageVariables =
+			variableRequirements?.length && request.variableMissingMode === 'create-with-value'
+				? await this.packageParser.getVariables(reader)
+				: undefined;
+		// `project` places variables in the import target project; `global` sends them to global scope.
 		const globalPlacement = request.variableParentPolicy === 'global';
 		const variableRequest: VariableImportRequest = {
-			requirements: variableRequirements?.map((requirement) => ({
-				...requirement,
-				globalPlacement,
-			})),
+			requirements: variableRequirements?.map((requirement) => {
+				if (request.variableMissingMode !== 'create-with-value') {
+					return { ...requirement, globalPlacement };
+				}
+				const entry = pickManifestVariableEntry(manifest.variables, undefined, requirement.name);
+				const requirementValue = validateVariableRequirementValue(
+					requirement.value,
+					requirement.name,
+				);
+				const value = entry
+					? (packageVariables?.get(entry.target)?.value ?? requirementValue)
+					: requirementValue;
+				return {
+					...requirement,
+					...(value !== undefined ? { value } : {}),
+					globalPlacement,
+				};
+			}),
 			missingMode: request.variableMissingMode,
 		};
 

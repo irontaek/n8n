@@ -20,7 +20,7 @@ describe('ImportPackageRequestDto', () => {
 				dataTableMatchingMode: 'by-id',
 				dataTableMissingMode: 'create',
 				dataTableSchemaConflictPolicy: 'keep-existing',
-				variableMissingMode: 'do-nothing',
+				variableMissingMode: 'create-with-value',
 				variableParentPolicy: 'project',
 			});
 		}
@@ -46,7 +46,7 @@ describe('ImportPackageRequestDto', () => {
 				dataTableMatchingMode: 'by-id',
 				dataTableMissingMode: 'create',
 				dataTableSchemaConflictPolicy: 'keep-existing',
-				variableMissingMode: 'do-nothing',
+				variableMissingMode: 'create-with-value',
 				variableParentPolicy: 'project',
 			});
 		}
@@ -74,7 +74,7 @@ describe('ImportPackageRequestDto', () => {
 				dataTableMatchingMode: 'by-id',
 				dataTableMissingMode: 'create',
 				dataTableSchemaConflictPolicy: 'keep-existing',
-				variableMissingMode: 'do-nothing',
+				variableMissingMode: 'create-with-value',
 				variableParentPolicy: 'project',
 			});
 		}
@@ -101,7 +101,7 @@ describe('ImportPackageRequestDto', () => {
 				dataTableMatchingMode: 'by-id',
 				dataTableMissingMode: 'create',
 				dataTableSchemaConflictPolicy: 'keep-existing',
-				variableMissingMode: 'do-nothing',
+				variableMissingMode: 'create-with-value',
 				variableParentPolicy: 'project',
 			});
 		}
@@ -334,15 +334,15 @@ describe('ImportPackageRequestDto', () => {
 	});
 
 	describe('variableMissingMode', () => {
-		it('defaults variableMissingMode to do-nothing when omitted', () => {
+		it('defaults variableMissingMode to create-with-value when omitted', () => {
 			const result = ImportPackageRequestDto.safeParse({ workflowConflictPolicy: 'fail' });
 			expect(result.success).toBe(true);
 			if (result.success) {
-				expect(result.data.variableMissingMode).toBe('do-nothing');
+				expect(result.data.variableMissingMode).toBe('create-with-value');
 			}
 		});
 
-		it.each(['do-nothing', 'must-preexist', 'create-stub'] as const)(
+		it.each(['do-nothing', 'must-preexist', 'create-stub', 'create-with-value'] as const)(
 			'accepts %s as a variableMissingMode value',
 			(variableMissingMode) => {
 				const result = ImportPackageRequestDto.safeParse({

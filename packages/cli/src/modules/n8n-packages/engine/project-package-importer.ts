@@ -11,7 +11,8 @@ import { ProjectImporter } from '../entities/project/project-importer';
 import {
 	computeVariableLimitFailure,
 	dedupeCreationsByDestination,
-	isRequirementAGlobalVariable,
+	pickManifestVariableEntry,
+	validateVariableRequirementValue,
 } from '../entities/variable/variable.types';
 import type { VariableImportRequest } from '../entities/variable/variable.types';
 import type { PackageReader } from '../io/package-reader';
@@ -41,6 +42,7 @@ import {
 import { emitPackageImportedEvent, type PackageImportScope } from './import-telemetry';
 import { N8nPackageParser } from './n8n-package-parser';
 import type { ManifestEntry, PackageManifest } from '../spec/manifest.schema';
+import type { ImportedVariable } from '../spec/serialized/variable.schema';
 
 @Service()
 export class ProjectPackageImporter {
@@ -62,6 +64,11 @@ export class ProjectPackageImporter {
 
 		const projects = await this.packageParser.getProjects(reader);
 		const projectPlan = await this.projectImporter.plan(request.user, projects);
+		const packageVariables =
+			(manifest.requirements?.variables?.length ?? 0) > 0 &&
+			request.variableMissingMode === 'create-with-value'
+				? await this.packageParser.getVariables(reader)
+				: undefined;
 		// Projects the user is creating (vs matching an existing one). They will be admin of these,
 		// so publish is always allowed and the project need not exist while its contents are planned.
 		const pendingCreateIds = new Set(
@@ -79,6 +86,7 @@ export class ProjectPackageImporter {
 				manifest,
 				project,
 				pendingCreateIds.has(project.id),
+				packageVariables,
 			);
 			const plan = await this.importOrchestrator.plan(input);
 			planned.push({ project, plan });
@@ -116,6 +124,7 @@ export class ProjectPackageImporter {
 		const stubbed: string[] = [];
 		const variablesMatched = new Set<string>();
 		const variablesMissing = new Set<string>();
+		const variablesCreated = new Set<string>();
 		const variablesStubbed = new Set<string>();
 		const variablesSkipped = new Set<string>();
 		const scopes: PackageImportScope[] = [];
@@ -129,6 +138,7 @@ export class ProjectPackageImporter {
 			stubbed.push(...imported.credentialResult.stubbed);
 			imported.variablePlan.matched.forEach((name) => variablesMatched.add(name));
 			imported.variablePlan.missing.forEach(({ name }) => variablesMissing.add(name));
+			imported.variableResult.created.forEach((name) => variablesCreated.add(name));
 			imported.variableResult.stubbed.forEach((name) => variablesStubbed.add(name));
 			imported.variableResult.skippedExisting.forEach((name) => variablesSkipped.add(name));
 			scopes.push({
@@ -141,15 +151,15 @@ export class ProjectPackageImporter {
 		}
 
 		// A skip means apply found the variable's destination already occupied, so this scope created
-		// nothing even though the name now resolves. If no scope stubbed the name, the occupying row
-		// came from outside this import, so the name counts as matched. If a scope did stub it, the
-		// occupier was this import's own creation (e.g. an earlier scope's global stub); the name is
-		// already reported as stubbed, and also reporting it as matched would imply it pre-existed.
+		// nothing even though the name now resolves. If no scope created the name, the occupying row
+		// came from outside this import, so the name counts as matched. Otherwise the occupier was
+		// this import's own earlier creation and is already reported as created or stubbed.
 		for (const name of variablesSkipped) {
-			if (!variablesStubbed.has(name)) variablesMatched.add(name);
+			if (!variablesCreated.has(name) && !variablesStubbed.has(name)) variablesMatched.add(name);
 		}
 		const variablesMissingFinal = [...variablesMissing].filter(
-			(name) => !variablesStubbed.has(name) && !variablesSkipped.has(name),
+			(name) =>
+				!variablesCreated.has(name) && !variablesStubbed.has(name) && !variablesSkipped.has(name),
 		);
 
 		emitPackageImportedEvent(this.eventService, { request, manifest, scopes });
@@ -164,6 +174,7 @@ export class ProjectPackageImporter {
 			variables: {
 				matched: [...variablesMatched],
 				missing: variablesMissingFinal,
+				created: [...variablesCreated],
 				stubbed: [...variablesStubbed],
 			},
 		});
@@ -175,6 +186,7 @@ export class ProjectPackageImporter {
 		manifest: PackageManifest,
 		project: ManifestEntry,
 		projectPendingCreation: boolean,
+		packageVariables: Map<string, ImportedVariable> | undefined,
 	): Promise<ImportOrchestrationInput> {
 		const basePrefix = `${project.target}/`;
 		const folders = await this.packageParser.getFolders(reader, basePrefix);
@@ -203,14 +215,29 @@ export class ProjectPackageImporter {
 
 		const variableRequest: VariableImportRequest = {
 			requirements: identifyRequirements(manifest.requirements?.variables, workflows)?.map(
-				(requirement) => ({
-					...requirement,
-					globalPlacement: isRequirementAGlobalVariable(
+				(requirement) => {
+					const entry = pickManifestVariableEntry(
 						manifest.variables,
 						project.target,
 						requirement.name,
-					),
-				}),
+					);
+					const globalPlacement = entry?.target.startsWith('variables/') ?? false;
+					if (request.variableMissingMode !== 'create-with-value') {
+						return { ...requirement, globalPlacement };
+					}
+					const requirementValue = validateVariableRequirementValue(
+						requirement.value,
+						requirement.name,
+					);
+					const value = entry
+						? (packageVariables?.get(entry.target)?.value ?? requirementValue)
+						: requirementValue;
+					return {
+						...requirement,
+						...(value !== undefined ? { value } : {}),
+						globalPlacement,
+					};
+				},
 			),
 			missingMode: request.variableMissingMode,
 		};
@@ -255,7 +282,8 @@ export class ProjectPackageImporter {
 
 		if (
 			(manifest.requirements?.variables?.length ?? 0) > 0 &&
-			request.variableMissingMode === 'create-stub'
+			(request.variableMissingMode === 'create-stub' ||
+				request.variableMissingMode === 'create-with-value')
 		) {
 			assertPackageImportApiKeyScopes(request.apiKeyScopes, ['variable:create']);
 		}

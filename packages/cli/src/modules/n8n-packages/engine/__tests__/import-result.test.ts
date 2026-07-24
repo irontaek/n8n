@@ -78,6 +78,7 @@ describe('toVariableSummary', () => {
 	});
 
 	const result = (overrides: Partial<VariableApplyResult> = {}): VariableApplyResult => ({
+		created: [],
 		stubbed: [],
 		skippedExisting: [],
 		createdCount: 0,
@@ -88,6 +89,7 @@ describe('toVariableSummary', () => {
 		expect(toVariableSummary(plan(['A'], ['B']), result())).toEqual({
 			matched: ['A'],
 			missing: ['B'],
+			created: [],
 			stubbed: [],
 		});
 	});
@@ -96,6 +98,7 @@ describe('toVariableSummary', () => {
 		expect(toVariableSummary(plan(['A'], ['B', 'C']), result({ stubbed: ['B', 'C'] }))).toEqual({
 			matched: ['A'],
 			missing: [],
+			created: [],
 			stubbed: ['B', 'C'],
 		});
 	});
@@ -105,6 +108,7 @@ describe('toVariableSummary', () => {
 		expect(toVariableSummary(plan(['A'], ['B']), result({ skippedExisting: ['B'] }))).toEqual({
 			matched: ['A', 'B'],
 			missing: [],
+			created: [],
 			stubbed: [],
 		});
 	});
@@ -113,6 +117,7 @@ describe('toVariableSummary', () => {
 		expect(toVariableSummary(plan(['A'], ['B']), result({ skippedExisting: ['A', 'B'] }))).toEqual({
 			matched: ['A', 'B'],
 			missing: [],
+			created: [],
 			stubbed: [],
 		});
 	});

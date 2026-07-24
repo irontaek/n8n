@@ -91,8 +91,8 @@ export class ImportPackageRequestDto extends Z.class({
 		.optional()
 		.default('keep-existing'),
 	variableMissingMode: z
-		.enum(['do-nothing', 'must-preexist', 'create-stub'])
+		.enum(['do-nothing', 'must-preexist', 'create-stub', 'create-with-value'])
 		.optional()
-		.default('do-nothing'),
+		.default('create-with-value'),
 	variableParentPolicy: z.enum(['project', 'global']).optional().default('project'),
 }) {}

@@ -66,6 +66,7 @@ const scope = (input: {
 			})),
 		},
 		variableResult: {
+			created: [],
 			stubbed: Array.from({ length: created }, (_, i) => `created-var-${i}`),
 			skippedExisting: [],
 			createdCount: created,
