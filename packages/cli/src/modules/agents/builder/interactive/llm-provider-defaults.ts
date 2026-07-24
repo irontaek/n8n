@@ -56,6 +56,10 @@ export const LLM_PROVIDER_DEFAULTS: Record<string, LlmProviderDefault> = {
 		provider: 'openrouter',
 		defaultModel: 'anthropic/claude-sonnet-4.6',
 	},
+	basetenApi: {
+		provider: 'baseten',
+		defaultModel: 'zai-org/GLM-5.2-Fast',
+	},
 	nvidiaApi: {
 		provider: 'nvidia',
 		defaultModel: 'nvidia/llama-3.3-nemotron-super-49b-v1',
@@ -65,3 +69,19 @@ export const LLM_PROVIDER_DEFAULTS: Record<string, LlmProviderDefault> = {
 		defaultModel: 'anthropic/claude-sonnet-4.6',
 	},
 };
+
+/** Order in which resolve_llm auto-picks a provider when credentials span multiple providers. */
+export const LLM_PROVIDER_PRIORITY: string[] = [
+	'anthropic',
+	'openai',
+	'google',
+	'mistral',
+	'xai',
+	'groq',
+	'deepseek',
+	'cohere',
+	'openrouter',
+	'baseten',
+	'nvidia',
+	'vercel',
+];
