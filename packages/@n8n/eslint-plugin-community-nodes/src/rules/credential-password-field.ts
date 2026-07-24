@@ -7,32 +7,9 @@ import {
 	findObjectProperty,
 	getStringLiteralValue,
 	getBooleanLiteralValue,
+	isSensitiveName,
 	createRule,
 } from '../utils/index.js';
-
-const SENSITIVE_PATTERNS = [
-	'password',
-	'secret',
-	'token',
-	'cert',
-	'passphrase',
-	'apikey',
-	'secretkey',
-	'privatekey',
-	'authkey',
-];
-
-const NON_SENSITIVE_PATTERNS = ['url', 'pub', 'id'];
-
-function isSensitiveFieldName(name: string): boolean {
-	const lowerName = name.toLowerCase();
-
-	if (NON_SENSITIVE_PATTERNS.some((pattern) => lowerName.includes(pattern))) {
-		return false;
-	}
-
-	return SENSITIVE_PATTERNS.some((pattern) => lowerName.includes(pattern));
-}
 
 function hasPasswordTypeOption(element: TSESTree.ObjectExpression): boolean {
 	const typeOptionsProperty = findObjectProperty(element, 'typeOptions');
@@ -120,7 +97,7 @@ export const CredentialPasswordFieldRule = createRule({
 					const nameProperty = findObjectProperty(element, 'name');
 					const fieldName = nameProperty ? getStringLiteralValue(nameProperty.value) : null;
 
-					if (!fieldName || !isSensitiveFieldName(fieldName)) {
+					if (!fieldName || !isSensitiveName(fieldName)) {
 						continue;
 					}
 
