@@ -226,10 +226,10 @@ import { AddScheduledTaskDispatchedAt1784000000049 } from '../common/17840000000
 import { AddHostRunIdToInstanceAiCheckpoints1784000000050 } from '../common/1784000000050-AddHostRunIdToInstanceAiCheckpoints';
 import { BackfillInstanceAiEventLog1784000000051 } from '../common/1784000000051-BackfillInstanceAiEventLog';
 import { CreateWorkflowReviewRequestTables1784000000052 } from '../common/1784000000052-CreateWorkflowReviewRequestTables';
-import { MakeRoleMappingRuleRoleNullable1784556173999 } from '../common/1784556173999-MakeRoleMappingRuleRoleNullable';
 import { AddStoredAtToAgentExecution1784815940110 } from '../common/1784815940110-AddStoredAtToAgentExecution';
 import { AddInstanceCredentials1784815940111 } from '../common/1784815940111-AddInstanceCredentials';
 import { CreateAgentEvalTables1784815940112 } from '../common/1784815940112-CreateAgentEvalTables';
+import { MakeRoleMappingRuleRoleNullable1784896393356 } from '../common/1784896393356-MakeRoleMappingRuleRoleNullable';
 import type { Migration } from '../migration-types';
 
 export const postgresMigrations: Migration[] = [
@@ -461,8 +461,8 @@ export const postgresMigrations: Migration[] = [
 	AddHostRunIdToInstanceAiCheckpoints1784000000050,
 	BackfillInstanceAiEventLog1784000000051,
 	CreateWorkflowReviewRequestTables1784000000052,
-	MakeRoleMappingRuleRoleNullable1784556173999,
 	AddStoredAtToAgentExecution1784815940110,
 	AddInstanceCredentials1784815940111,
 	CreateAgentEvalTables1784815940112,
+	MakeRoleMappingRuleRoleNullable1784896393356,
 ];
