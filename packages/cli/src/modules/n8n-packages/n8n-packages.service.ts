@@ -152,6 +152,7 @@ export class N8nPackagesService {
 				existingWorkflowEntries: allWorkflowsBeforeAutoInclude,
 				existingFolderEntries: allFoldersBeforeAutoInclude,
 				existingProjectEntries: allProjectsBeforeAutoInclude,
+				includeTags,
 				projectTargetsById: projectExportResult?.projectTargetsById,
 			});
 		}
